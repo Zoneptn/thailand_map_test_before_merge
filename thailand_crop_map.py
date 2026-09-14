@@ -29,15 +29,7 @@ def load_crop_data():
     df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_provinces")
     df = df.rename(columns={"province_name_en": "province"})
     return df[["province", "region", "SHK_region", "crop", "crop_group", "year",
-               "area_planted_rai", "area_harvested_rai",
-               "fertilizer_usage", "herbicide_usage", "insecticide_usage", "fungicide_usage"]]
-
-USAGE_COLUMNS = {
-    "Fertilizer": "fertilizer_usage",
-    "Herbicide": "herbicide_usage",
-    "Insecticide": "insecticide_usage",
-    "Fungicide": "fungicide_usage",
-}
+               "area_planted_rai", "area_harvested_rai"]]
 
 def build_name_lookup(geojson):
     """Province names as they appear in the geojson — use this to check
@@ -60,21 +52,18 @@ def render_crop_explorer(df, geojson):
     with col3:
         metric = st.selectbox(
             "Metric",
-            ["area_planted_rai", "area_harvested_rai"] + list(USAGE_COLUMNS.values()),
+            ["area_planted_rai", "area_harvested_rai"],
             format_func=lambda c: c.replace("_", " ").title(),
         )
     with col4:
         shk_options = ["All"] + sorted(df["SHK_region"].dropna().unique())
-        selected_shk = st.selectbox("SHK_sales_region)", shk_options)
+        selected_shk = st.selectbox("Company sales region (SHK_region)", shk_options)
 
     filtered = df[(df["crop"] == selected_crop) & (df["year"] == selected_year)]
     if selected_shk != "All":
         filtered = filtered[filtered["SHK_region"] == selected_shk]
 
-    # Area columns are totals (sum across duplicate rows); usage columns are
-    # per-rai RATES, so they should be averaged, never summed.
-    agg_fn = "mean" if metric in USAGE_COLUMNS.values() else "sum"
-    map_data = filtered.groupby("province", as_index=False)[metric].agg(agg_fn)
+    map_data = filtered.groupby("province", as_index=False)[metric].sum()
 
     fig = px.choropleth_map(
         map_data,
@@ -90,6 +79,8 @@ def render_crop_explorer(df, geojson):
         labels={metric: metric.replace("_", " ").title()},
     )
     fig.update_traces(
+        marker_line_width=1,
+        marker_line_color="#666666",
         hovertemplate="<b>%{location}</b><br>"
         + metric.replace("_", " ").title() + ": %{z:,.2f}<extra></extra>"
     )
@@ -120,10 +111,13 @@ def render_market_analysis(df, geojson):
         st.info("Select one or more crops above to see the target analysis.")
         return
 
-    basis_options = ["Cultivated area (rai)"] + [f"{name} demand" for name in USAGE_COLUMNS]
-    basis = st.selectbox(
-        "Rank provinces & SHK regions by", basis_options, key="market_analysis_basis"
+    metric_col = st.selectbox(
+        "Rank provinces & SHK regions by",
+        ["area_planted_rai", "area_harvested_rai"],
+        format_func=lambda c: c.replace("_", " ").title(),
+        key="market_analysis_metric",
     )
+    value_label = metric_col.replace("_", " ").title()
 
     # Use each crop's own latest available year -- crops don't all share the
     # same data recency (e.g. fruit crops lagging behind field crops).
@@ -137,22 +131,6 @@ def render_market_analysis(df, geojson):
         "Year used per crop: "
         + ", ".join(f"{c} ({y})" for c, y in latest_year_per_crop.items())
     )
-
-    if basis == "Cultivated area (rai)":
-        metric_col = "area_planted_rai"
-        value_label = "Area (rai)"
-    else:
-        input_name = basis.replace(" demand", "")
-        usage_col = USAGE_COLUMNS[input_name]
-        # Estimated demand = area actually planted x that input's usage rate per rai.
-        # This is the number that reflects real market size -- raw area alone
-        # doesn't, since two provinces with equal area can need very different
-        # amounts of a given input.
-        target_df = target_df.assign(
-            estimated_demand=target_df["area_planted_rai"] * target_df[usage_col]
-        )
-        metric_col = "estimated_demand"
-        value_label = f"Estimated {input_name.lower()} demand (area x usage/rai)"
 
     # Province-level ranking: combined value, which of the chosen crops are
     # actually grown there.
@@ -191,6 +169,8 @@ def render_market_analysis(df, geojson):
         labels={value_label: value_label},
     )
     fig.update_traces(
+        marker_line_width=1,
+        marker_line_color="#666666",
         hovertemplate="<b>%{location}</b><br>" + value_label + ": %{z:,.2f}<extra></extra>"
     )
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
