@@ -26,7 +26,7 @@ DATA_PATH = "crop_area_by_provinces_TEMPLATE.xlsx"  # your real workbook, same f
 
 @st.cache_data
 def load_crop_data():
-    df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_province")
+    df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_provinces")
     df = df.rename(columns={"province_name_en": "province"})
     return df[["province", "region", "SHK_region", "crop", "crop_group",
                "area_planted_rai", "area_harvested_rai"]]
@@ -64,14 +64,14 @@ def main():
     # sum them so the choropleth gets exactly one value per province.
     filtered = filtered.groupby("province", as_index=False)[metric].sum()
 
-    fig = px.choropleth_mapbox(
+    fig = px.choropleth_map(
         filtered,
         geojson=geojson,
         locations="province",
         featureidkey="properties.name",   # <-- the join key
         color=metric,
         color_continuous_scale="Greens",
-        mapbox_style="carto-positron",
+        map_style="carto-positron",
         zoom=4.5,
         center={"lat": 13.7, "lon": 101.0},
         opacity=0.75,
