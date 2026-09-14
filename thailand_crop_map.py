@@ -22,7 +22,7 @@ def load_geojson():
     resp.raise_for_status()
     return resp.json()
 
-DATA_PATH = "crop_area_by_provinces.xlsx"  # your real workbook, same folder as this script
+DATA_PATH = "crop_area_by_provinces_TEMPLATE.xlsx"  # your real workbook, same folder as this script
 
 @st.cache_data
 def load_crop_data():
