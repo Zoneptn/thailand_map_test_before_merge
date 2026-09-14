@@ -29,7 +29,8 @@ def load_crop_data():
     df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_provinces")
     df = df.rename(columns={"province_name_en": "province"})
     return df[["province", "region", "SHK_region", "crop", "crop_group", "year",
-               "area_planted_rai", "area_harvested_rai"]]
+               "area_planted_rai", "area_harvested_rai",
+               "total_production", "yield_per_rai"]]
 
 def build_name_lookup(geojson):
     """Province names as they appear in the geojson — use this to check
@@ -52,7 +53,7 @@ def render_crop_explorer(df, geojson):
     with col3:
         metric = st.selectbox(
             "Metric",
-            ["area_planted_rai", "area_harvested_rai"],
+            ["area_planted_rai", "area_harvested_rai", "total_production", "yield_per_rai"],
             format_func=lambda c: c.replace("_", " ").title(),
         )
     with col4:
@@ -63,7 +64,10 @@ def render_crop_explorer(df, geojson):
     if selected_shk != "All":
         filtered = filtered[filtered["SHK_region"] == selected_shk]
 
-    map_data = filtered.groupby("province", as_index=False)[metric].sum()
+    # yield_per_rai is a RATE and must be averaged, not summed -- everything
+    # else here is a total, so summing is correct for those.
+    agg_fn = "mean" if metric == "yield_per_rai" else "sum"
+    map_data = filtered.groupby("province", as_index=False)[metric].agg(agg_fn)
 
     fig = px.choropleth_map(
         map_data,
@@ -113,7 +117,7 @@ def render_market_analysis(df, geojson):
 
     metric_col = st.selectbox(
         "Rank provinces & SHK regions by",
-        ["area_planted_rai", "area_harvested_rai"],
+        ["area_planted_rai", "area_harvested_rai", "total_production"],
         format_func=lambda c: c.replace("_", " ").title(),
         key="market_analysis_metric",
     )
