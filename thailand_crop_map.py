@@ -1,5 +1,5 @@
 """
-Example: Thailand province map showing dominant/selected crop cultivation.
+Thailand province map showing dominant/selected crop cultivation.
 Uses apisit/thailand.json (thailandWithName.json) for province boundaries.
 
 Run with: streamlit run thailand_crop_map_example.py
@@ -60,6 +60,16 @@ def main():
     filtered = df[df["crop"] == selected_crop]
     if selected_shk != "All":
         filtered = filtered[filtered["SHK_region"] == selected_shk]
+
+    # Detail table -- one row per province for the selected crop, before aggregation.
+    st.subheader(f"Provinces growing {selected_crop}")
+    st.dataframe(
+        filtered[["crop", "province", "SHK_region", metric]]
+        .sort_values(metric, ascending=False)
+        .reset_index(drop=True),
+        use_container_width=True,
+    )
+
     # If a province still has more than one row here (e.g. duplicate entries),
     # sum them so the choropleth gets exactly one value per province.
     filtered = filtered.groupby("province", as_index=False)[metric].sum()
