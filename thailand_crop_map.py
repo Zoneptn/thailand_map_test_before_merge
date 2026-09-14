@@ -1,5 +1,5 @@
 """
-Thailand province map showing dominant/selected crop cultivation.
+Example: Thailand province map showing dominant/selected crop cultivation.
 Uses apisit/thailand.json (thailandWithName.json) for province boundaries.
 
 Run with: streamlit run thailand_crop_map_example.py
@@ -28,7 +28,7 @@ DATA_PATH = "crop_area_by_provinces_TEMPLATE.xlsx"  # your real workbook, same f
 def load_crop_data():
     df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_provinces")
     df = df.rename(columns={"province_name_en": "province"})
-    return df[["province", "region", "SHK_region", "crop", "crop_group",
+    return df[["province", "region", "SHK_region", "crop", "crop_group", "year",
                "area_planted_rai", "area_harvested_rai"]]
 
 def build_name_lookup(geojson):
@@ -48,23 +48,30 @@ def main():
         data_names = set(df["province"].unique())
         st.write("In your data but NOT in geojson (fix spelling):", data_names - geo_names)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         selected_crop = st.selectbox("Select crop", sorted(df["crop"].unique()))
     with col2:
-        metric = st.selectbox("Metric", ["area_planted_rai", "area_harvested_rai"])
+        # Only years that actually exist for THIS crop -- e.g. rice might have
+        # 2025 while a fruit crop's latest available data is still 2024.
+        years_for_crop = sorted(
+            df.loc[df["crop"] == selected_crop, "year"].dropna().unique(), reverse=True
+        )
+        selected_year = st.selectbox("Year", years_for_crop)
     with col3:
+        metric = st.selectbox("Metric", ["area_planted_rai", "area_harvested_rai"])
+    with col4:
         shk_options = ["All"] + sorted(df["SHK_region"].dropna().unique())
         selected_shk = st.selectbox("Company sales region (SHK_region)", shk_options)
 
-    filtered = df[df["crop"] == selected_crop]
+    filtered = df[(df["crop"] == selected_crop) & (df["year"] == selected_year)]
     if selected_shk != "All":
         filtered = filtered[filtered["SHK_region"] == selected_shk]
 
-    # Detail table -- one row per province for the selected crop, before aggregation.
-    st.subheader(f"Provinces growing {selected_crop}")
+    # Detail table -- one row per province for the selected crop/year, before aggregation.
+    st.subheader(f"Provinces growing {selected_crop} ({selected_year})")
     st.dataframe(
-        filtered[["crop", "province", "SHK_region", metric]]
+        filtered[["crop", "year", "province", "SHK_region", metric]]
         .sort_values(metric, ascending=False)
         .reset_index(drop=True),
         use_container_width=True,
