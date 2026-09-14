@@ -26,7 +26,7 @@ DATA_PATH = "crop_area_by_provinces_TEMPLATE.xlsx"  # your real workbook, same f
 
 @st.cache_data
 def load_crop_data():
-    df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_province")
+    df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_provinces")
     df = df.rename(columns={"province_name_en": "province"})
     return df[["province", "region", "SHK_region", "crop", "crop_group",
                "area_planted_rai", "area_harvested_rai"]]
