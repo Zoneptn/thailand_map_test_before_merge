@@ -208,6 +208,16 @@ def main():
     st.set_page_config(layout="wide")
     st.title("Crop Cultivation by Province")
 
+    with st.sidebar:
+        if st.button("🔄 Reload data"):
+            load_crop_data.clear()
+            load_geojson.clear()
+            st.rerun()
+        st.caption(
+            "Click after editing the Excel file -- otherwise the app may keep "
+            "showing cached data from before your change."
+        )
+
     geojson = load_geojson()
     df = load_crop_data()
 
