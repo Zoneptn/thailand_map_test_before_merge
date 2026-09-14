@@ -62,7 +62,7 @@ def main():
         metric = st.selectbox("Metric", ["area_planted_rai", "area_harvested_rai"])
     with col4:
         shk_options = ["All"] + sorted(df["SHK_region"].dropna().unique())
-        selected_shk = st.selectbox("Company sales region (SHK_region)", shk_options)
+        selected_shk = st.selectbox("SHK_Sales_region)", shk_options)
 
     filtered = df[(df["crop"] == selected_crop) & (df["year"] == selected_year)]
     if selected_shk != "All":
