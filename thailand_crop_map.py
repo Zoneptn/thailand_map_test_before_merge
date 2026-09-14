@@ -29,7 +29,15 @@ def load_crop_data():
     df = pd.read_excel(DATA_PATH, sheet_name="crop_area_by_provinces")
     df = df.rename(columns={"province_name_en": "province"})
     return df[["province", "region", "SHK_region", "crop", "crop_group", "year",
-               "area_planted_rai", "area_harvested_rai"]]
+               "area_planted_rai", "area_harvested_rai",
+               "fertilizer_usage", "herbicide_usage", "insecticide_usage", "fungicide_usage"]]
+
+USAGE_COLUMNS = {
+    "Fertilizer": "fertilizer_usage",
+    "Herbicide": "herbicide_usage",
+    "Insecticide": "insecticide_usage",
+    "Fungicide": "fungicide_usage",
+}
 
 def build_name_lookup(geojson):
     """Province names as they appear in the geojson — use this to check
@@ -50,7 +58,11 @@ def render_crop_explorer(df, geojson):
         )
         selected_year = st.selectbox("Year", years_for_crop)
     with col3:
-        metric = st.selectbox("Metric", ["area_planted_rai", "area_harvested_rai"])
+        metric = st.selectbox(
+            "Metric",
+            ["area_planted_rai", "area_harvested_rai"] + list(USAGE_COLUMNS.values()),
+            format_func=lambda c: c.replace("_", " ").title(),
+        )
     with col4:
         shk_options = ["All"] + sorted(df["SHK_region"].dropna().unique())
         selected_shk = st.selectbox("Company sales region (SHK_region)", shk_options)
@@ -59,8 +71,10 @@ def render_crop_explorer(df, geojson):
     if selected_shk != "All":
         filtered = filtered[filtered["SHK_region"] == selected_shk]
 
-    # One value per province for the map (sums duplicate rows if any).
-    map_data = filtered.groupby("province", as_index=False)[metric].sum()
+    # Area columns are totals (sum across duplicate rows); usage columns are
+    # per-rai RATES, so they should be averaged, never summed.
+    agg_fn = "mean" if metric in USAGE_COLUMNS.values() else "sum"
+    map_data = filtered.groupby("province", as_index=False)[metric].agg(agg_fn)
 
     fig = px.choropleth_map(
         map_data,
@@ -106,8 +120,9 @@ def render_market_analysis(df, geojson):
         st.info("Select one or more crops above to see the target analysis.")
         return
 
-    metric = st.selectbox(
-        "Metric", ["area_planted_rai", "area_harvested_rai"], key="market_analysis_metric"
+    basis_options = ["Cultivated area (rai)"] + [f"{name} demand" for name in USAGE_COLUMNS]
+    basis = st.selectbox(
+        "Rank provinces & SHK regions by", basis_options, key="market_analysis_basis"
     )
 
     # Use each crop's own latest available year -- crops don't all share the
@@ -123,24 +138,41 @@ def render_market_analysis(df, geojson):
         + ", ".join(f"{c} ({y})" for c, y in latest_year_per_crop.items())
     )
 
-    # Province-level ranking: combined target area, which of the chosen crops
-    # are actually grown there.
+    if basis == "Cultivated area (rai)":
+        metric_col = "area_planted_rai"
+        value_label = "Area (rai)"
+    else:
+        input_name = basis.replace(" demand", "")
+        usage_col = USAGE_COLUMNS[input_name]
+        # Estimated demand = area actually planted x that input's usage rate per rai.
+        # This is the number that reflects real market size -- raw area alone
+        # doesn't, since two provinces with equal area can need very different
+        # amounts of a given input.
+        target_df = target_df.assign(
+            estimated_demand=target_df["area_planted_rai"] * target_df[usage_col]
+        )
+        metric_col = "estimated_demand"
+        value_label = f"Estimated {input_name.lower()} demand (area x usage/rai)"
+
+    # Province-level ranking: combined value, which of the chosen crops are
+    # actually grown there.
     province_summary = (
         target_df.groupby("province", as_index=False)
         .agg(
-            total_area=(metric, "sum"),
+            total_value=(metric_col, "sum"),
             crops_present=("crop", lambda s: ", ".join(sorted(s.unique()))),
             SHK_region=("SHK_region", "first"),
         )
-        .sort_values("total_area", ascending=False)
+        .rename(columns={"total_value": value_label})
+        .sort_values(value_label, ascending=False)
         .reset_index(drop=True)
     )
 
     # SHK_region-level ranking: which company sales region to emphasize.
     shk_summary = (
         target_df.groupby("SHK_region", as_index=False)
-        .agg(total_area=(metric, "sum"), province_count=("province", "nunique"))
-        .sort_values("total_area", ascending=False)
+        .agg(**{value_label: (metric_col, "sum")}, province_count=("province", "nunique"))
+        .sort_values(value_label, ascending=False)
         .reset_index(drop=True)
     )
 
@@ -150,17 +182,16 @@ def render_market_analysis(df, geojson):
         geojson=geojson,
         locations="province",
         featureidkey="properties.name",
-        color="total_area",
+        color=value_label,
         color_continuous_scale="Oranges",
         map_style="carto-positron",
         zoom=4.5,
         center={"lat": 13.7, "lon": 101.0},
         opacity=0.75,
-        labels={"total_area": metric.replace("_", " ").title()},
+        labels={value_label: value_label},
     )
     fig.update_traces(
-        hovertemplate="<b>%{location}</b><br>"
-        + metric.replace("_", " ").title() + ": %{z:,.2f}<extra></extra>"
+        hovertemplate="<b>%{location}</b><br>" + value_label + ": %{z:,.2f}<extra></extra>"
     )
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
     st.plotly_chart(fig, use_container_width=True)
