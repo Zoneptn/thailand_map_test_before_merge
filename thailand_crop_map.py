@@ -53,7 +53,7 @@ def render_crop_explorer(df, geojson):
         metric = st.selectbox("Metric", ["area_planted_rai", "area_harvested_rai"])
     with col4:
         shk_options = ["All"] + sorted(df["SHK_region"].dropna().unique())
-        selected_shk = st.selectbox("SHK_sales_region)", shk_options)
+        selected_shk = st.selectbox("Company sales region (SHK_region)", shk_options)
 
     filtered = df[(df["crop"] == selected_crop) & (df["year"] == selected_year)]
     if selected_shk != "All":
@@ -75,6 +75,7 @@ def render_crop_explorer(df, geojson):
         opacity=0.75,
         labels={metric: metric.replace("_", " ").title()},
     )
+    fig.update_traces(zhoverformat=".2f")
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=650)
     st.plotly_chart(fig, use_container_width=True)
 
@@ -154,6 +155,7 @@ def render_market_analysis(df, geojson):
         opacity=0.75,
         labels={"total_area": metric.replace("_", " ").title()},
     )
+    fig.update_traces(zhoverformat=".2f")
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
     st.plotly_chart(fig, use_container_width=True)
 
