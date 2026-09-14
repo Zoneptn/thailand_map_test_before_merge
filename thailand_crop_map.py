@@ -65,7 +65,7 @@ def render_crop_explorer(df, geojson):
         )
     with col4:
         shk_options = ["All"] + sorted(df["SHK_region"].dropna().unique())
-        selected_shk = st.selectbox("Company sales region (SHK_region)", shk_options)
+        selected_shk = st.selectbox("SHK_sales_region)", shk_options)
 
     filtered = df[(df["crop"] == selected_crop) & (df["year"] == selected_year)]
     if selected_shk != "All":
